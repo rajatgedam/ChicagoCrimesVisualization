@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="./lib/d3.js"></script>
+    <title>Chicago Map</title>
+    <style>
+        #tooltip {
+            position: absolute;
+            opacity: 0;
+            top: 0;
+            left: 0;
+            width: auto;
+            padding: 10px;
+            background: white;
+            font-family: sans-serif;
+            font-size: medium;
+            border-radius: 2px;
+            line-height: 1;
+        }
+        
+        #info{
+            position: absolute;
+            top: 20vh;
+            left: 50vw;
+            width: auto;
+            padding: 10px;
+            background: white;
+            font-family: sans-serif;
+            font-size: medium;
+            border-radius: 2px;
+            line-height: 1;
+        }
+
+        #day_chart {
+            position: absolute;
+            top: 20vh;
+            left: 50vw;
+        }
+
+        #info-title {
+            top: 18vh;
+            left: 70vw;
+            position: absolute;
+            font-weight: bold;
+        }
+
+        #but1 {
+            top: 95vh;
+            left: 70vw;
+            position: absolute;
+        }
+        
+        #but2 {
+            top: 95vh;
+            left: 75vw;
+            position: absolute;
+        }
+
+        path {
+            stroke-width: .5px;
+            stroke: black
+        }
+        
+        path:hover {
+            opacity: .6;
+            stroke: black;
+            stroke-width: 4px;
+        }
+        #container{
+            display: flex;
+            height: 100%;
+            justify-content: left;
+            align-items: left;
+        }
+        .title {
+            display: flex;
+            justify-content: center;
+            flex-direction: column;
+            align-items: center;
+            font-family: sans-serif;
+            margin-top: 10px;
+        }
+
+        
+
+
+    </style>
+</head>
+
+<body>
+    <div id="tooltip"></div>
+    
+    <div class="title">
+        <h1>Map of Crimes in Chicago</h1>
+        <h3>Brandon Wetzel and Rajat Gedam</h3>
+    </div>
+    <div id="info-title"></div>
+    <div id="info"></div>
+    <div id="day_chart" style="visibility: hidden;"></div>
+    <div id="container">...Loading</div>
+    <button id="but1" type="button">Year</button>
+    <button id="but2" type="button">Day</button>
+    <script src="./src/circularHeatChart.js"></script>
+    <script>
+
+        const button1 = d3.select("#but1").on("click", () => {
+            d3.select("#info").style("visibility", "visible")
+            d3.select("#day_chart").style("visibility", "hidden")
+        })
+
+        const button2 = d3.select("#but2").on("click", () => {
+            d3.select("#info").style("visibility", "hidden")
+            d3.select("#day_chart").style("visibility", "visible")
+        })
+
+        const window_dims = {
+            width: window.innerWidth/2,
+            height: window.innerHeight/2
+        };
+
+        const margin = window_dims.width * .05;
+        
+        const crime_data_path = (year) => `./data/${year}.json`;
+        const geo_data = "./data/chicago_com_areas.geojson";
+
+        const formatter = d => ({
+            date: new Date(d['date']),
+            year: +d['year'],
+            community_area: +d['community_area']
+        })
+
+        Promise.all([
+            d3.json(crime_data_path(2017)), 
+            d3.json(crime_data_path(2018)),
+            d3.json(crime_data_path(2019)),
+            d3.json(crime_data_path(2020)),
+            d3.json(crime_data_path(2021)),
+            d3.json(crime_data_path(2022)),
+            d3.json(geo_data)
+        ]).then(data => {
+
+
+            const crimes_2017 = data[0];
+            const crimes_2018 = data[1];
+            const crimes_2019 = data[2];
+            const crimes_2020 = data[3];
+            const crimes_2021 = data[4];
+            const crimes_2022 = data[5];
+
+            const crime_data = d3.map(
+                [...crimes_2017, ...crimes_2018, ...crimes_2019, ...crimes_2020, ...crimes_2021, ...crimes_2022]
+                , formatter
+            );
+
+            const days_of_week = ["Sunday 11pm - 12am", "Monday 11pm - 12am", "Tuesday 11pm - 12am", "Wednesday 11pm - 12am", "Thursday 11pm - 12am", "Friday 11pm - 12am", "Saturday 11pm - 12am"];
+
+            const by_community_area = d3.group(crime_data, d => d.community_area)
+            const by_year = d3.group(crime_data, d => d.year)
+            const by_day = d3.group(crime_data, d => days_of_week[d.date.getDay()])
+            const hourly = d3.map(days_of_week, (day) => {
+                data_for_day = by_day.get(day)
+                by_hour = d3.group(data_for_day, d => d.date.getHours()+1)
+                hours = d3.range(1,25)
+                return d3.map(hours, hour => by_hour.get(hour).length)
+            })
+
+            const geojson = data[6];
+
+            var chart = circularHeatChart()
+                .segmentHeight(7)
+                .numSegments(7)
+                .innerRadius(30)
+                .segmentLabels(days_of_week)
+            
+            var data = [];
+            for(var i=0; i<7; i++)
+                for(var j = 0; j < 24; j++)
+                    data[j * 7 + i] = hourly[i][j];
+
+            let day_chart = d3.select('#day_chart')
+                .selectAll('svg')
+                .data([data])
+                .enter()
+                .append('svg')
+                .attr("viewbox", `0 0 ${window_dims.width} ${window_dims.height}`)
+                .attr("width", "55vw")
+                .attr("height", "75vh")
+                .call(chart);
+
+            const geoPath_generator = d3.geoPath()
+                .projection(d3.geoMercator().fitSize([window_dims.width - margin, window_dims.height - margin], geojson))
+
+            const colorInterpolator = d3.interpolateRgbBasis(["blue", "red"])
+
+            let linearScale = d3.scaleLinear()
+                .domain(d3.extent(geojson.features, d => {
+                    return by_community_area.get(+d['properties']['area_numbe']).length
+                }))
+
+            let svg = d3.select("#container").text("").append("svg")
+                .attr("viewBox",`0 0 ${window_dims.width} ${window_dims.height}`)
+                .attr("width", "60vw")
+                .attr("height", "80vh")
+                
+            
+            const info = d3.select("#info")
+            const info_title = d3.select("#info-title").text("overall")
+
+            const matrix = [
+                [2017, 2018],
+                [2019, 2020],
+                [2021, 2022]
+            ]
+
+            const tr = info.append("table")
+            .selectAll("tr")
+            .data(matrix)
+            .enter()
+            .append("tr")
+            
+            const td = tr.selectAll("td")
+            .data(d => d)
+            .enter()
+            .append("td")
+            .text(d => d)
+
+            const graph = td.append("svg")
+            .attr("viewBox",`0 0 ${window_dims.width} ${window_dims.height}`)
+            .attr("width", "20vw")
+            .attr("height", "20vh")
+            .attr("class", "by_year")
+
+            const graph_width = tr.node().getBoundingClientRect().width - margin;
+            const graph_height = tr.node().getBoundingClientRect().height * 2 - margin * 2;
+            
+            const months = d3.range(0,12)
+
+            const xScale = d3.scaleBand().range([0, graph_width])//.padding(.4)
+            const yScale = d3.scaleLinear().range([graph_height, 0])
+            xScale.domain(d3.range(1,13))
+            yScale.domain([0, 30000]) // This was a total shot in the dark idk lol
+
+            const g = graph.append("g")
+                .attr("transform", `translate(${margin * 2}, ${margin * 2})`)
+
+            g.append("g")
+                .attr("transform", `translate(0, ${graph_height})`)
+                .call(d3.axisBottom(xScale))
+
+            const axis_left = g.append("g")
+                .call(d3.axisLeft(yScale).ticks(5))
+            
+            let bars = g.selectAll(".bar")
+            .data(year => {
+                year_data = by_year.get(year)
+                by_month = d3.group(year_data, d => d.date.getMonth())
+                return d3.map(months, (d) => ({month: d, value: by_month.get(d) ? by_month.get(d).length: 0}))
+            })
+            .enter()
+            .append("rect")
+            .attr("class", "bar")
+            .attr("x", d => xScale(d.month+1))
+            .attr("y", d => yScale(d.value))
+            .attr("width", graph_width / 12)
+            .attr("height", d => graph_height - yScale(d.value))
+            .attr("fill", "steelblue")
+
+            svg.selectAll("path")
+                .data(geojson.features)
+                .enter()
+                .append("path")
+                .attr("d", d => geoPath_generator(d))
+                .attr("fill", d => colorInterpolator ( linearScale ( by_community_area.get( +d['properties']['area_numbe'] ).length ) ))
+                .on("mousedown", (m, d) => {
+                    info_title.text(d['properties']['community'])
+                    bars.remove()
+
+                    com_area = d['properties']['area_numbe']
+                    com_data = by_community_area.get(+com_area)
+
+                    by_year_com = d3.group(com_data, d => d.year)
+
+                    yScale.domain([0, 1200])
+                    axis_left.call(d3.axisLeft(yScale).ticks(5))
+
+                    bars = g.selectAll(".bar")
+                    .data(year => {
+                        year_data = by_year_com.get(year)
+                        by_month = d3.group(year_data, d => d.date.getMonth())
+                        return d3.map(months, (d) => ({month: d, value: by_month.get(d) ? by_month.get(d).length: 0}))
+                    })
+                    .enter()
+                    .append("rect")
+                    .attr("class", "bar")
+                    .attr("x", d => xScale(d.month+1))
+                    .attr("y", d => yScale(d.value))
+                    .attr("width", graph_width / 12)
+                    .attr("height", d => graph_height - yScale(d.value))
+                    .attr("fill", `${d3.select(m.srcElement).attr("fill")}`)
+
+
+                    day_chart.remove()
+                    by_day_com = d3.group(com_data, d => days_of_week[d.date.getDay()])
+
+                    hourly_com = d3.map(days_of_week, (day) => {
+                        data_for_day = by_day_com.get(day)
+                        by_hour = d3.group(data_for_day, d => d.date.getHours()+1)
+                        hours = d3.range(1,25)
+                        return d3.map(hours, hour => by_hour.get(hour) ? by_hour.get(hour).length : 0)
+                    })
+
+                    console.log(hourly_com)
+
+                    var data = [];
+                    for(var i=0; i<7; i++)
+                        for(var j = 0; j < 24; j++)
+                            data[j * 7 + i] = hourly_com[i][j];
+
+                    day_chart = d3.select('#day_chart')
+                        .selectAll('svg')
+                        .data([data])
+                        .enter()
+                        .append('svg')
+                        .attr("viewbox", `0 0 ${window_dims.width} ${window_dims.height}`)
+                        .attr("width", "55vw")
+                        .attr("height", "75vh")
+                        .call(chart);
+                })
+        })
+
+
+    </script>
+</body>
+
+</html>
