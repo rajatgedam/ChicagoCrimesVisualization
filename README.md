@@ -12,3 +12,5 @@ https://rajatgedam.github.io/ChicagoCrimesVisualization/
 
 
 
+![image](https://github.com/rajatgedam/ChicagoCrimesVisualization/assets/26092488/68a4a457-de2a-497f-93f0-e797f1f103b6)
+
