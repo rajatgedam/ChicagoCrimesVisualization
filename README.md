@@ -10,6 +10,10 @@ The map of Chicago is used to display a geospatial visualization. The visualizat
 
 Additionally, there are two buttons to select day/year at the bottom of the bar graphs. A circular heatmap view is switched to when "Day" is chosen. This graphic shows the county's crime rates over the course of a week (Sun - Mon), 24 hours a day. 
 
+Dataset:
+
+https://data.cityofchicago.org/Public-Safety/Crimes-2022/9hwr-2zxp/data. 
+
 Pages Link: 
 
 https://rajatgedam.github.io/ChicagoCrimesVisualization/
